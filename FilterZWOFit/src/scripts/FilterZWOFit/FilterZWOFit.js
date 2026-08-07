@@ -1,7 +1,7 @@
 #engine v8
 /*
    FilterZWOFit.js
-   PixInsight 1.9.4 (PJSR) Feature Script:
+   PixInsight 1.9.5 (PJSR) Feature Script:
    GUI tool to write the FILTER keyword in the FITS header,
    with single-image and batch processing modes.
 */
