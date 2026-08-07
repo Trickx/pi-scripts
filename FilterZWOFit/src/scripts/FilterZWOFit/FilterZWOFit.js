@@ -6,6 +6,8 @@
    with single-image and batch processing modes.
 */
 // Engine hint: prefer the PJSR engine on builds without legacy 'sm'.
+#feature-id    Utilities > FilterZWOFit
+#feature-info  Sets the FILTER value in the FITS header of the active image or in batch mode for a selected folder.
 #feature-icon  FilterZWOFit.svg
 
 #include <pjsr/StdButton.jsh>
