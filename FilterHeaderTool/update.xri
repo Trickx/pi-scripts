@@ -4,7 +4,7 @@
       fileName="FilterHeaderTool20260807v0100.tar.gz"
       sha1="1f46e2211b5738c0e791dcaebc41692370befe10"
       type="script"
-      repo="https://cdn.jsdelivr.net/gh/Trickx/pi-scripts@main/FilterHeaderTool/"
+      repo="https://cdn.jsdelivr.net/gh/Trickx/pi-scripts/FilterHeaderTool/"
       releaseDate="20260807"
       title="Filter Header Tool 1.0.0">
       <description>
