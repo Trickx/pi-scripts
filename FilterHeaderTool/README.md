@@ -1,0 +1,28 @@
+# FilterHeaderTool Update Repository
+
+This folder is a PixInsight update repository root.
+
+## Repository Files
+
+- update.xri
+- FilterHeaderTool20260807v0100.tar.gz
+- src/scripts/FilterHeaderTool/FilterHeaderTool.js
+- src/scripts/FilterHeaderTool/PIFilter_Feature.svg
+- src/scripts/FilterHeaderTool/filter.txt
+
+## PixInsight Installation URL
+
+Preferred (raw content):
+- https://raw.githubusercontent.com/Trickx/pi-scripts/main/FilterHeaderTool/
+
+Requested path form:
+- https://github.com/Trickx/pi-scripts/FilterHeaderTool/
+
+If PixInsight cannot parse the GitHub HTML path, use the raw URL above.
+
+## Publish Steps
+
+1. Push this repository to origin/main.
+2. In PixInsight, open Resources > Updates > Manage Repositories.
+3. Add the repository URL.
+4. Check for updates and install the script package.

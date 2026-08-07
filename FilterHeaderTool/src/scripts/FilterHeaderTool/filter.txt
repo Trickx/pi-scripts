@@ -1,0 +1,12 @@
+# Beispiel-Filterliste fuer PIFilter
+L
+R
+G
+B
+Ha
+OIII
+SII
+IDAS NB1
+
+# Alternativ gehen auch kommaseparierte Zeilen:
+# UV, IR, CLS
