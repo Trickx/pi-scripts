@@ -6,7 +6,7 @@ This folder is a PixInsight update repository root.
 
 - updates.xri
 - update.xri
-- FilterZWOFit20260807v0101.tar.gz
+- FilterZWOFit20260807v0102.tar.gz
 - src/scripts/FilterZWOFit/FilterZWOFit.js
 - src/scripts/FilterZWOFit/FilterZWOFit.svg
 - src/scripts/FilterZWOFit/filter.txt

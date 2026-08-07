@@ -20,6 +20,7 @@ var SUPPORTED_IMAGE_EXTENSIONS = [ ".fit", ".fits", ".fts", ".xisf" ];
 var SETTINGS_PREFIX = "FilterZWOFit";
 var SETTINGS_KEY_LAST_BATCH_DIR = SETTINGS_PREFIX + "/LastBatchDirectory";
 var SETTINGS_KEY_LAST_FILTER = SETTINGS_PREFIX + "/LastFilter";
+var SETTINGS_KEY_FILTER_TEXT = SETTINGS_PREFIX + "/FilterText";
 
 function logDebug( msg )
 {
@@ -131,6 +132,11 @@ function loadFiltersFromFile( filePath )
 {
    logDebug( "Loading filter file: " + filePath );
    var text = File.readTextFile( filePath );
+   return loadFiltersFromText( text, filePath );
+}
+
+function loadFiltersFromText( text, sourceLabel )
+{
    var lines = text.split( /\r\n|\n|\r/ );
    var filters = [];
    var seen = {};
@@ -138,7 +144,7 @@ function loadFiltersFromFile( filePath )
    for ( i = 0; i < lines.length; ++i )
       parseFilterLine( lines[i], filters, seen );
 
-    logDebug( "Filter file read. Lines: " + lines.length + ", valid filters: " + filters.length );
+   logDebug( "Filter list read from " + sourceLabel + ". Lines: " + lines.length + ", valid filters: " + filters.length );
 
    return filters;
 }
@@ -222,18 +228,18 @@ function listBatchFiles( directory )
       {
          if ( f.isDirectory )
             continue;
-               logDebug( "Setting stored: " + key + " = " + value );
-            continue;
 
-               logWarn( "Settings.write failed for " + key + ": " + ex );
+         var filePath = directory;
+         if ( filePath.charAt( filePath.length-1 ) != '/' )
+            filePath += "/";
+         filePath += f.name;
+
          if ( isSupportedImageFile( filePath ) )
             files.push( filePath );
       }
       while ( f.next() );
    }
-         // FITS string values must be enclosed in single quotes.
-         // Single quotes in content are escaped by doubling them.
-         return "'" + s.replace( /'/g, "''" ) + "'";
+
    return files;
 }
 
@@ -258,7 +264,7 @@ function processBatchDirectory( directory, filterText )
       try
       {
          windows = ImageWindow.open( filePath );
-      logWarn( "Could not resolve script directory from arguments. Fallback to CWD: " + baseDir );
+         if ( windows == null || windows.length < 1 )
             throw "File could not be opened.";
 
          var w = windows[0];
@@ -382,20 +388,21 @@ function FilterDialog()
    this.helpLabel = new Label( this );
    this.helpLabel.useRichText = true;
    this.helpLabel.wordWrapping = true;
+   var tooltipFromList = "Filter List: Select a filter loaded from your saved filter list.";
+   var tooltipManual = "Filter String: Enter or edit the FILTER value that will be written to FITS headers.";
+   var tooltipApply = "Apply: Write FILTER to the active image.";
+   var tooltipBatch = "Batch...: Process all supported files in a selected folder.";
+   var tooltipEdit = "Edit...: Open the filter-list editor.";
+   var tooltipCancel = "Cancel: Close this dialog without changes.";
    this.helpLabel.text =
-      "The filter list is loaded automatically from filter.txt on startup.\n" +
-      "You can also enter the FILTER value manually or apply it in batch mode.";
+      "This script writes the selected filter value to the FILTER keyword in the FITS header.";
 
-   this.fileLabel = new Label( this );
-   this.fileLabel.text = "Filter file:";
-   this.fileLabel.minWidth = this.font.width( "Filter file:" ) + 8;
-
-   this.fileEdit = new Edit( this );
-   this.fileEdit.readOnly = true;
-   this.fileEdit.minWidth = this.font.width( "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" );
+   var labelWidth = this.font.width( "Filter String:" ) + 8;
+   var valueWidth = this.font.width( "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" );
 
    this.editFilterFileButton = new PushButton( this );
    this.editFilterFileButton.text = "Edit...";
+   this.editFilterFileButton.toolTip = tooltipEdit;
    this.editFilterFileButton.onClick = function()
    {
       var filePath = trimText( this.dialog.filterFilePath );
@@ -403,9 +410,13 @@ function FilterDialog()
          filePath = getDefaultFilterFilePath();
 
       var text = "";
+      var storedText = readSettingString( SETTINGS_KEY_FILTER_TEXT, "" );
       try
       {
-         text = File.exists( filePath ) ? File.readTextFile( filePath ) : defaultFilterFileTemplate();
+         if ( storedText.length > 0 )
+            text = storedText;
+         else
+            text = File.exists( filePath ) ? File.readTextFile( filePath ) : defaultFilterFileTemplate();
       }
       catch ( ex )
       {
@@ -425,8 +436,19 @@ function FilterDialog()
 
       try
       {
-         File.writeTextFile( filePath, editorDlg.editedText );
-         logDebug( "Filter file saved: " + filePath );
+         writeSettingString( SETTINGS_KEY_FILTER_TEXT, editorDlg.editedText );
+         logDebug( "Filter list saved in user settings." );
+
+         try
+         {
+            File.writeTextFile( filePath, editorDlg.editedText );
+            logDebug( "Filter file saved: " + filePath );
+         }
+         catch ( writeEx )
+         {
+            logWarn( "Could not write filter file path (read-only install is fine): " + writeEx );
+         }
+
          this.dialog.loadFilterFile( filePath );
       }
       catch ( ex2 )
@@ -441,20 +463,15 @@ function FilterDialog()
       }
    };
 
-   this.fileSizer = new HorizontalSizer;
-   this.fileSizer.spacing = 6;
-   this.fileSizer.add( this.fileLabel );
-   this.fileSizer.add( this.fileEdit, 100 );
-   this.fileSizer.add( this.editFilterFileButton );
-
    this.selectLabel = new Label( this );
-   this.selectLabel.text = "From List:";
-   this.selectLabel.minWidth = this.fileLabel.minWidth;
+   this.selectLabel.text = "Filter List:";
+   this.selectLabel.minWidth = labelWidth;
+   this.selectLabel.toolTip = tooltipFromList;
 
    this.filterCombo = new ComboBox( this );
    this.filterCombo.editEnabled = false;
-   this.filterCombo.minWidth = this.fileEdit.minWidth;
-   this.filterCombo.toolTip = "Filters loaded from file";
+   this.filterCombo.minWidth = valueWidth;
+   this.filterCombo.toolTip = tooltipFromList;
    this.filterCombo.onItemSelected = function( index )
    {
       if ( index < 0 )
@@ -468,11 +485,13 @@ function FilterDialog()
    this.selectSizer.add( this.filterCombo, 100 );
 
    this.filterLabel = new Label( this );
-   this.filterLabel.text = "Manual:";
-   this.filterLabel.minWidth = this.fileLabel.minWidth;
+   this.filterLabel.text = "Filter String:";
+   this.filterLabel.minWidth = labelWidth;
+   this.filterLabel.toolTip = tooltipManual;
 
    this.filterEdit = new Edit( this );
    this.filterEdit.minWidth = this.font.width( "XXXXXXXXXXXX" ) * 2;
+   this.filterEdit.toolTip = tooltipManual;
    if ( this.lastFilterValue.length > 0 )
       this.filterEdit.text = this.lastFilterValue;
 
@@ -483,6 +502,7 @@ function FilterDialog()
 
    this.okButton = new PushButton( this );
    this.okButton.text = "Apply";
+   this.okButton.toolTip = tooltipApply;
    this.okButton.defaultButton = true;
    this.okButton.onClick = function()
    {
@@ -505,7 +525,8 @@ function FilterDialog()
    };
 
    this.batchButton = new PushButton( this );
-   this.batchButton.text = "Batch";
+   this.batchButton.text = "Batch...";
+   this.batchButton.toolTip = tooltipBatch;
    this.batchButton.onClick = function()
    {
       var t = trimText( this.dialog.filterEdit.text );
@@ -540,6 +561,7 @@ function FilterDialog()
 
    this.cancelButton = new PushButton( this );
    this.cancelButton.text = "Cancel";
+   this.cancelButton.toolTip = tooltipCancel;
    this.cancelButton.onClick = function()
    {
       this.dialog.cancel();
@@ -551,12 +573,12 @@ function FilterDialog()
    this.buttonSizer.add( this.okButton );
    this.buttonSizer.add( this.batchButton );
    this.buttonSizer.add( this.cancelButton );
+   this.buttonSizer.add( this.editFilterFileButton );
 
    this.sizer = new VerticalSizer;
    this.sizer.margin = 10;
    this.sizer.spacing = 8;
    this.sizer.add( this.helpLabel );
-   this.sizer.add( this.fileSizer );
    this.sizer.add( this.selectSizer );
    this.sizer.add( this.inputSizer );
    this.sizer.addSpacing( 4 );
@@ -586,11 +608,49 @@ FilterDialog.prototype.loadFilterFile = function( filePath )
 {
    logDebug( "loadFilterFile called with: " + filePath );
 
+   var storedText = readSettingString( SETTINGS_KEY_FILTER_TEXT, "" );
+   if ( storedText.length > 0 )
+   {
+      try
+      {
+         var stored = loadFiltersFromText( storedText, "user settings" );
+         this.filters = stored;
+         this.filterFilePath = filePath;
+         this.populateFilterCombo( stored );
+
+         if ( stored.length > 0 )
+         {
+            var sidx = findFilterIndex( stored, this.lastFilterValue );
+            if ( sidx >= 0 )
+            {
+               this.filterCombo.currentItem = sidx;
+               this.filterEdit.text = stored[sidx];
+            }
+            else if ( trimText( this.filterEdit.text ).length == 0 )
+            {
+               this.filterCombo.currentItem = 0;
+               this.filterEdit.text = stored[0];
+            }
+            logDebug( "Filter list loaded from user settings: " + stored.length + " entries" );
+         }
+         else
+         {
+            this.filterEdit.text = "";
+            logWarn( "Stored filter list exists but has no valid entries." );
+         }
+
+         return;
+      }
+      catch ( storedEx )
+      {
+         logWarn( "Could not load filter list from user settings: " + storedEx );
+      }
+   }
+
    if ( !File.exists( filePath ) )
    {
       this.filters = [];
       this.filterFilePath = filePath;
-      this.fileEdit.text = filePath;
       this.populateFilterCombo( [] );
       logWarn( "Filter file not found: " + filePath );
 
@@ -609,7 +669,6 @@ FilterDialog.prototype.loadFilterFile = function( filePath )
       var loaded = loadFiltersFromFile( filePath );
       this.filters = loaded;
       this.filterFilePath = filePath;
-      this.fileEdit.text = filePath;
       this.populateFilterCombo( loaded );
 
       if ( loaded.length > 0 )
