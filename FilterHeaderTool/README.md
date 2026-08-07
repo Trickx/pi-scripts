@@ -12,11 +12,11 @@ This folder is a PixInsight update repository root.
 
 ## PixInsight Installation URL
 
-Preferred (CDN):
-- https://cdn.jsdelivr.net/gh/Trickx/pi-scripts/FilterHeaderTool/update.xri
+Preferred (raw, refs/heads):
+- https://raw.githubusercontent.com/Trickx/pi-scripts/refs/heads/main/FilterHeaderTool/update.xri
 
-Alternative (raw content):
-- https://raw.githubusercontent.com/Trickx/pi-scripts/main/FilterHeaderTool/update.xri
+Alternative (CDN):
+- https://cdn.jsdelivr.net/gh/Trickx/pi-scripts/FilterHeaderTool/update.xri
 
 Requested path form:
 - https://github.com/Trickx/pi-scripts/FilterHeaderTool/
