@@ -13,12 +13,15 @@ This folder is a PixInsight update repository root.
 ## PixInsight Installation URL
 
 Preferred (raw content):
-- https://raw.githubusercontent.com/Trickx/pi-scripts/main/FilterHeaderTool/
+- https://raw.githubusercontent.com/Trickx/pi-scripts/main/FilterHeaderTool/update.xri
 
 Requested path form:
 - https://github.com/Trickx/pi-scripts/FilterHeaderTool/
 
-If PixInsight cannot parse the GitHub HTML path, use the raw URL above.
+Note:
+- `raw.githubusercontent.com` does not serve directory listings, so
+	`.../FilterHeaderTool/` returns HTTP 404.
+- PixInsight must receive the direct XRI file URL shown above.
 
 ## Publish Steps
 
