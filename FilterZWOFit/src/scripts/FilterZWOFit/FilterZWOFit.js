@@ -1,13 +1,13 @@
 /*
-   PIFilter_Feature.js
+   FilterZWOFit.js
    PixInsight 1.9.4 (PJSR) Feature Script:
-   GUI zum Setzen des FILTER-Schluesselworts im FITS-Header,
-   inklusive Einzelbild- und Batchbetrieb.
+   GUI tool to write the FILTER keyword in a FITS header,
+   with single-image and batch processing modes.
 */
 
-#feature-id    Utilities > FilterHeaderTool
-#feature-info  Setzt per GUI den FILTER-Wert im FITS-Header des aktiven Bildes oder im Batch fuer ein Verzeichnis.
-#feature-icon  PIFilter_Feature.svg
+#feature-id    Utilities > FilterZWOFit
+#feature-info  Sets the FILTER value in the FITS header of the active image or in batch mode for a selected folder.
+#feature-icon  FilterZWOFit.svg
 
 #include <pjsr/Sizer.jsh>
 #include <pjsr/StdButton.jsh>
@@ -17,7 +17,7 @@
 var DEFAULT_FILTER_FILE_NAME = "filter.txt";
 var DEBUG_ENABLED = true;
 var SUPPORTED_IMAGE_EXTENSIONS = [ ".fit", ".fits", ".fts", ".xisf" ];
-var SETTINGS_PREFIX = "PIFilter";
+var SETTINGS_PREFIX = "FilterZWOFit";
 var SETTINGS_KEY_LAST_BATCH_DIR = SETTINGS_PREFIX + "/LastBatchDirectory";
 var SETTINGS_KEY_LAST_FILTER = SETTINGS_PREFIX + "/LastFilter";
 
@@ -26,19 +26,19 @@ function logDebug( msg )
    if ( !DEBUG_ENABLED )
       return;
    console.show();
-   console.noteln( "[PIFilter][DEBUG] " + msg );
+   console.noteln( "[FilterZWOFit][DEBUG] " + msg );
 }
 
 function logWarn( msg )
 {
    console.show();
-   console.warningln( "[PIFilter][WARN] " + msg );
+   console.warningln( "[FilterZWOFit][WARN] " + msg );
 }
 
 function logError( msg )
 {
    console.show();
-   console.criticalln( "[PIFilter][ERROR] " + msg );
+   console.criticalln( "[FilterZWOFit][ERROR] " + msg );
 }
 
 function readSettingString( key, defaultValue )
@@ -53,7 +53,7 @@ function readSettingString( key, defaultValue )
    }
    catch ( ex )
    {
-      logWarn( "Settings.read fehlgeschlagen fuer " + key + ": " + ex );
+         logWarn( "Settings.read failed for " + key + ": " + ex );
       return defaultValue;
    }
 }
@@ -63,11 +63,11 @@ function writeSettingString( key, value )
    try
    {
       Settings.write( key, DataType_String, value );
-      logDebug( "Setting gespeichert: " + key + " = " + value );
+      logDebug( "Setting stored: " + key + " = " + value );
    }
    catch ( ex )
    {
-      logWarn( "Settings.write fehlgeschlagen fuer " + key + ": " + ex );
+      logWarn( "Settings.write failed for " + key + ": " + ex );
    }
 }
 
@@ -92,8 +92,8 @@ function trimText( s )
 
 function fitsStringValue( s )
 {
-   // FITS-Stringwerte muessen in einfachen Anfuehrungszeichen stehen.
-   // Einzelne Anfuehrungszeichen im Inhalt werden verdoppelt.
+   // FITS string values must be enclosed in single quotes.
+   // Single quotes in content are escaped by doubling them.
    return "'" + s.replace( /'/g, "''" ) + "'";
 }
 
@@ -129,7 +129,7 @@ function parseFilterLine( line, outFilters, seen )
 
 function loadFiltersFromFile( filePath )
 {
-   logDebug( "Lade Filterdatei: " + filePath );
+   logDebug( "Loading filter file: " + filePath );
    var text = File.readTextFile( filePath );
    var lines = text.split( /\r\n|\n|\r/ );
    var filters = [];
@@ -138,14 +138,14 @@ function loadFiltersFromFile( filePath )
    for ( i = 0; i < lines.length; ++i )
       parseFilterLine( lines[i], filters, seen );
 
-    logDebug( "Filterdatei gelesen. Zeilen: " + lines.length + ", gueltige Filter: " + filters.length );
+    logDebug( "Filter file read. Lines: " + lines.length + ", valid filters: " + filters.length );
 
    return filters;
 }
 
 function defaultFilterFileTemplate()
 {
-   return "# Filterliste fuer PIFilter\n" +
+   return "# Filter list for FilterZWOFit\n" +
           "L\nR\nG\nB\nHa\nOIII\nSII\n";
 }
 
@@ -173,16 +173,16 @@ function directoryFromPath( path )
 
 function getDefaultFilterFilePath()
 {
-   // Dokumentiertes PJSR-Muster: #__FILE__ liefert den aktuellen Skriptpfad als Stringliteral.
+   // Documented PJSR pattern: #__FILE__ provides current script path as a string literal.
    var scriptPath = #__FILE__;
    var scriptDir = File.extractDirectory( scriptPath );
    logDebug( "__FILE__ = " + scriptPath );
-   logDebug( "Skriptverzeichnis = " + scriptDir );
+   logDebug( "Script directory = " + scriptDir );
    if ( scriptDir.length > 0 )
       return scriptDir + "/" + DEFAULT_FILTER_FILE_NAME;
 
    var baseDir = File.currentWorkingDirectory;
-   logWarn( "Konnte kein Skriptverzeichnis aus Argumenten ermitteln. Fallback auf CWD: " + baseDir );
+   logWarn( "Could not resolve script directory from arguments. Fallback to CWD: " + baseDir );
    if ( baseDir.length == 0 )
       return DEFAULT_FILTER_FILE_NAME;
 
@@ -222,23 +222,25 @@ function listBatchFiles( directory )
       {
          if ( f.isDirectory )
             continue;
-         if ( f.name.length > 0 && f.name.charAt( 0 ) == '.' )
+               logDebug( "Setting stored: " + key + " = " + value );
             continue;
 
-         var filePath = directory + "/" + f.name;
+               logWarn( "Settings.write failed for " + key + ": " + ex );
          if ( isSupportedImageFile( filePath ) )
             files.push( filePath );
       }
       while ( f.next() );
    }
-
+         // FITS string values must be enclosed in single quotes.
+         // Single quotes in content are escaped by doubling them.
+         return "'" + s.replace( /'/g, "''" ) + "'";
    return files;
 }
 
 function processBatchDirectory( directory, filterText )
 {
    var files = listBatchFiles( directory );
-   logDebug( "Batch-Dateien gefunden: " + files.length );
+   logDebug( "Batch files found: " + files.length );
 
    var result = {
       total: files.length,
@@ -250,26 +252,26 @@ function processBatchDirectory( directory, filterText )
    for ( i = 0; i < files.length; ++i )
    {
       var filePath = files[i];
-      logDebug( "Batch bearbeite: " + filePath );
+      logDebug( "Batch processing: " + filePath );
 
       var windows = null;
       try
       {
          windows = ImageWindow.open( filePath );
-         if ( windows == null || windows.length == 0 )
-            throw "Datei konnte nicht geoeffnet werden.";
+      logWarn( "Could not resolve script directory from arguments. Fallback to CWD: " + baseDir );
+            throw "File could not be opened.";
 
          var w = windows[0];
          var action = upsertFilterKeyword( w, filterText );
          if ( !w.saveAs( filePath, false, false, false, false ) )
-            throw "Datei konnte nicht gespeichert werden.";
+            throw "File could not be saved.";
 
          logDebug( "Batch OK (" + action + "): " + filePath );
          ++result.success;
       }
       catch ( ex )
       {
-         logError( "Batch Fehler bei " + filePath + ": " + ex );
+         logError( "Batch error on " + filePath + ": " + ex );
          ++result.failed;
       }
       finally
@@ -293,21 +295,21 @@ function upsertFilterKeyword( window, filterText )
    var value = fitsStringValue( filterText );
    var i;
 
-   logDebug( "Setze FILTER auf: " + filterText );
+   logDebug( "Setting FILTER to: " + filterText );
 
    for ( i = 0; i < keywords.length; ++i )
       if ( keywords[i].name.toUpperCase() == "FILTER" )
       {
          keywords[i] = new FITSKeyword( "FILTER", value, "Optical filter" );
          window.keywords = keywords;
-         logDebug( "FILTER-Keyword aktualisiert." );
-         return "aktualisiert";
+         logDebug( "FILTER keyword updated." );
+         return "updated";
       }
 
    keywords.push( new FITSKeyword( "FILTER", value, "Optical filter" ) );
    window.keywords = keywords;
-   logDebug( "FILTER-Keyword neu angelegt." );
-   return "angelegt";
+   logDebug( "FILTER keyword created." );
+   return "created";
 }
 
 function FilterFileEditorDialog( filePath, initialText )
@@ -315,14 +317,14 @@ function FilterFileEditorDialog( filePath, initialText )
    this.__base__ = Dialog;
    this.__base__();
 
-   this.windowTitle = "PIFilter - Filterdatei bearbeiten";
+   this.windowTitle = "FilterZWOFit - Edit filter file";
    this.filePath = filePath;
    this.editedText = initialText;
 
    this.pathLabel = new Label( this );
    this.pathLabel.useRichText = true;
    this.pathLabel.wordWrapping = true;
-   this.pathLabel.text = "Datei: " + filePath;
+   this.pathLabel.text = "File: " + filePath;
 
    this.editor = new TextBox( this );
    this.editor.text = initialText;
@@ -330,7 +332,7 @@ function FilterFileEditorDialog( filePath, initialText )
    this.editor.minHeight = this.font.height * 16;
 
    this.saveButton = new PushButton( this );
-   this.saveButton.text = "Speichern";
+   this.saveButton.text = "Save";
    this.saveButton.defaultButton = true;
    this.saveButton.onClick = function()
    {
@@ -339,7 +341,7 @@ function FilterFileEditorDialog( filePath, initialText )
    };
 
    this.cancelButton = new PushButton( this );
-   this.cancelButton.text = "Abbrechen";
+   this.cancelButton.text = "Cancel";
    this.cancelButton.onClick = function()
    {
       this.dialog.cancel();
@@ -368,7 +370,7 @@ function FilterDialog()
    this.__base__ = Dialog;
    this.__base__();
 
-   this.windowTitle = "PIFilter - FILTER im FITS-Header setzen";
+   this.windowTitle = "FilterZWOFit - Set FILTER in FITS Header";
    this.filterText = "";
    this.filterFilePath = "";
    this.filters = [];
@@ -381,19 +383,19 @@ function FilterDialog()
    this.helpLabel.useRichText = true;
    this.helpLabel.wordWrapping = true;
    this.helpLabel.text =
-      "Filterliste wird beim Start automatisch aus filter.txt geladen.\n" +
-      "Du kannst den FILTER-Wert auch manuell eingeben oder per Batch anwenden.";
+      "The filter list is loaded automatically from filter.txt on startup.\n" +
+      "You can also enter the FILTER value manually or apply it in batch mode.";
 
    this.fileLabel = new Label( this );
-   this.fileLabel.text = "Filterdatei:";
-   this.fileLabel.minWidth = this.font.width( "Filterdatei:" ) + 8;
+   this.fileLabel.text = "Filter file:";
+   this.fileLabel.minWidth = this.font.width( "Filter file:" ) + 8;
 
    this.fileEdit = new Edit( this );
    this.fileEdit.readOnly = true;
    this.fileEdit.minWidth = this.font.width( "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" );
 
    this.editFilterFileButton = new PushButton( this );
-   this.editFilterFileButton.text = "Bearbeiten...";
+   this.editFilterFileButton.text = "Edit...";
    this.editFilterFileButton.onClick = function()
    {
       var filePath = trimText( this.dialog.filterFilePath );
@@ -407,10 +409,10 @@ function FilterDialog()
       }
       catch ( ex )
       {
-         logError( "Filterdatei konnte nicht gelesen werden: " + ex );
+         logError( "Could not read filter file: " + ex );
          (new MessageBox(
-            "Fehler beim Lesen der Filterdatei:\n" + ex,
-            "PIFilter",
+            "Error while reading filter file:\n" + ex,
+            "FilterZWOFit",
             StdIcon_Error,
             StdButton_Ok
          )).execute();
@@ -424,15 +426,15 @@ function FilterDialog()
       try
       {
          File.writeTextFile( filePath, editorDlg.editedText );
-         logDebug( "Filterdatei gespeichert: " + filePath );
+         logDebug( "Filter file saved: " + filePath );
          this.dialog.loadFilterFile( filePath );
       }
       catch ( ex2 )
       {
-         logError( "Filterdatei konnte nicht gespeichert werden: " + ex2 );
+         logError( "Could not save filter file: " + ex2 );
          (new MessageBox(
-            "Fehler beim Speichern der Filterdatei:\n" + ex2,
-            "PIFilter",
+            "Error while saving filter file:\n" + ex2,
+            "FilterZWOFit",
             StdIcon_Error,
             StdButton_Ok
          )).execute();
@@ -446,13 +448,13 @@ function FilterDialog()
    this.fileSizer.add( this.editFilterFileButton );
 
    this.selectLabel = new Label( this );
-   this.selectLabel.text = "Aus Liste:";
+   this.selectLabel.text = "From List:";
    this.selectLabel.minWidth = this.fileLabel.minWidth;
 
    this.filterCombo = new ComboBox( this );
    this.filterCombo.editEnabled = false;
    this.filterCombo.minWidth = this.fileEdit.minWidth;
-   this.filterCombo.toolTip = "Geladene Filter aus Datei";
+   this.filterCombo.toolTip = "Filters loaded from file";
    this.filterCombo.onItemSelected = function( index )
    {
       if ( index < 0 )
@@ -466,7 +468,7 @@ function FilterDialog()
    this.selectSizer.add( this.filterCombo, 100 );
 
    this.filterLabel = new Label( this );
-   this.filterLabel.text = "Manuell:";
+   this.filterLabel.text = "Manual:";
    this.filterLabel.minWidth = this.fileLabel.minWidth;
 
    this.filterEdit = new Edit( this );
@@ -480,7 +482,7 @@ function FilterDialog()
    this.inputSizer.add( this.filterEdit, 100 );
 
    this.okButton = new PushButton( this );
-   this.okButton.text = "Setzen";
+   this.okButton.text = "Apply";
    this.okButton.defaultButton = true;
    this.okButton.onClick = function()
    {
@@ -488,8 +490,8 @@ function FilterDialog()
       if ( t.length == 0 )
       {
          (new MessageBox(
-            "Bitte einen nicht-leeren FILTER-Wert eingeben.",
-            "PIFilter",
+            "Please enter a non-empty FILTER value.",
+            "FilterZWOFit",
             StdIcon_Warning,
             StdButton_Ok
          )).execute();
@@ -510,8 +512,8 @@ function FilterDialog()
       if ( t.length == 0 )
       {
          (new MessageBox(
-            "Bitte einen nicht-leeren FILTER-Wert eingeben.",
-            "PIFilter",
+            "Please enter a non-empty FILTER value.",
+            "FilterZWOFit",
             StdIcon_Warning,
             StdButton_Ok
          )).execute();
@@ -519,11 +521,11 @@ function FilterDialog()
       }
 
       var gdd = new GetDirectoryDialog;
-      gdd.caption = "Batch-Ordner waehlen";
+      gdd.caption = "Choose batch folder";
       gdd.initialPath = this.dialog.lastBatchDirectory;
       if ( !gdd.execute() )
       {
-         logDebug( "Batch-Auswahl abgebrochen." );
+         logDebug( "Batch selection canceled." );
          return;
       }
 
@@ -537,7 +539,7 @@ function FilterDialog()
    };
 
    this.cancelButton = new PushButton( this );
-   this.cancelButton.text = "Abbrechen";
+   this.cancelButton.text = "Cancel";
    this.cancelButton.onClick = function()
    {
       this.dialog.cancel();
@@ -582,7 +584,7 @@ FilterDialog.prototype.populateFilterCombo = function( filters )
 
 FilterDialog.prototype.loadFilterFile = function( filePath )
 {
-   logDebug( "loadFilterFile aufgerufen mit: " + filePath );
+   logDebug( "loadFilterFile called with: " + filePath );
 
    if ( !File.exists( filePath ) )
    {
@@ -590,12 +592,12 @@ FilterDialog.prototype.loadFilterFile = function( filePath )
       this.filterFilePath = filePath;
       this.fileEdit.text = filePath;
       this.populateFilterCombo( [] );
-      logWarn( "Filterdatei nicht gefunden: " + filePath );
+      logWarn( "Filter file not found: " + filePath );
 
       (new MessageBox(
-         "Filterdatei nicht gefunden:\n" + filePath + "\n\n" +
-         "Du kannst den FILTER-Wert weiterhin manuell eintragen.",
-         "PIFilter",
+         "Filter file not found:\n" + filePath + "\n\n" +
+         "You can still enter the FILTER value manually.",
+         "FilterZWOFit",
          StdIcon_Warning,
          StdButton_Ok
       )).execute();
@@ -623,15 +625,15 @@ FilterDialog.prototype.loadFilterFile = function( filePath )
             this.filterCombo.currentItem = 0;
             this.filterEdit.text = loaded[0];
          }
-         logDebug( "Filterliste geladen: " + loaded.length + " Eintraege" );
+         logDebug( "Filter list loaded: " + loaded.length + " entries" );
       }
       else
       {
          this.filterEdit.text = "";
-         logWarn( "Filterdatei gelesen, aber ohne gueltige Eintraege." );
+         logWarn( "Filter file read, but no valid entries were found." );
          (new MessageBox(
-            "Datei geladen, aber keine gueltigen Filtereintraege gefunden.",
-            "PIFilter",
+            "File loaded, but no valid filter entries were found.",
+            "FilterZWOFit",
             StdIcon_Warning,
             StdButton_Ok
          )).execute();
@@ -639,10 +641,10 @@ FilterDialog.prototype.loadFilterFile = function( filePath )
    }
    catch ( ex )
    {
-      logError( "Fehler beim Laden der Filterdatei: " + ex );
+      logError( "Error while loading filter file: " + ex );
       (new MessageBox(
-         "Fehler beim Laden der Filterdatei:\n" + ex,
-         "PIFilter",
+         "Error while loading filter file:\n" + ex,
+         "FilterZWOFit",
          StdIcon_Error,
          StdButton_Ok
       )).execute();
@@ -651,14 +653,14 @@ FilterDialog.prototype.loadFilterFile = function( filePath )
 
 function main()
 {
-   logDebug( "Skriptstart" );
-   logDebug( "Gespeicherter letzter Batch-Ordner-Key: " + SETTINGS_KEY_LAST_BATCH_DIR );
-   logDebug( "Gespeicherter letzter Filter-Key: " + SETTINGS_KEY_LAST_FILTER );
+   logDebug( "Script started" );
+   logDebug( "Saved last batch folder key: " + SETTINGS_KEY_LAST_BATCH_DIR );
+   logDebug( "Saved last filter key: " + SETTINGS_KEY_LAST_FILTER );
 
    var dlg = new FilterDialog;
    if ( !dlg.execute() )
    {
-      logDebug( "Dialog abgebrochen." );
+      logDebug( "Dialog canceled." );
       return;
    }
 
@@ -667,24 +669,24 @@ function main()
       var batchDir = trimText( dlg.batchDirectory );
       if ( batchDir.length == 0 )
       {
-         logError( "Batch-Modus ohne Zielverzeichnis." );
+         logError( "Batch mode without target directory." );
          return;
       }
 
       var r = processBatchDirectory( batchDir, dlg.filterText );
       var summary =
-         "Batch abgeschlossen.\n" +
-         "Ordner: " + batchDir + "\n" +
-         "Dateien gesamt: " + r.total + "\n" +
-         "Erfolgreich: " + r.success + "\n" +
-         "Fehler: " + r.failed;
+         "Batch completed.\n" +
+         "Folder: " + batchDir + "\n" +
+         "Total files: " + r.total + "\n" +
+         "Successful: " + r.success + "\n" +
+         "Errors: " + r.failed;
 
       console.show();
-      console.noteln( "[PIFilter] " + summary.replace( /\n/g, " | " ) );
+      console.noteln( "[FilterZWOFit] " + summary.replace( /\n/g, " | " ) );
 
       (new MessageBox(
          summary,
-         "PIFilter",
+         "FilterZWOFit",
          (r.failed > 0) ? StdIcon_Warning : StdIcon_Information,
          StdButton_Ok
       )).execute();
@@ -695,10 +697,10 @@ function main()
    var w = ImageWindow.activeWindow;
    if ( w.isNull )
    {
-      logError( "Kein aktives Bildfenster fuer Einzelmodus vorhanden." );
+      logError( "No active image window available for single mode." );
       (new MessageBox(
-         "Kein aktives Bildfenster gefunden.\nBitte zuerst ein Bild oeffnen oder Batch verwenden.",
-         "PIFilter",
+         "No active image window found.\nPlease open an image first or use batch mode.",
+         "FilterZWOFit",
          StdIcon_Error,
          StdButton_Ok
       )).execute();
@@ -711,8 +713,8 @@ function main()
    console.noteln( "FILTER " + action + ": " + dlg.filterText );
 
    (new MessageBox(
-      "FILTER wurde " + action + ": " + dlg.filterText,
-      "PIFilter",
+      "FILTER " + action + ": " + dlg.filterText,
+      "FilterZWOFit",
       StdIcon_Information,
       StdButton_Ok
    )).execute();
