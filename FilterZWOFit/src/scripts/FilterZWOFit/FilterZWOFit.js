@@ -1,15 +1,13 @@
+#engine v8
 /*
    FilterZWOFit.js
    PixInsight 1.9.4 (PJSR) Feature Script:
-   GUI tool to write the FILTER keyword in a FITS header,
+   GUI tool to write the FILTER keyword in the FITS header,
    with single-image and batch processing modes.
 */
-
-#feature-id    Utilities > FilterZWOFit
-#feature-info  Sets the FILTER value in the FITS header of the active image or in batch mode for a selected folder.
+// Engine hint: prefer the PJSR engine on builds without legacy 'sm'.
 #feature-icon  FilterZWOFit.svg
 
-#include <pjsr/Sizer.jsh>
 #include <pjsr/StdButton.jsh>
 #include <pjsr/StdIcon.jsh>
 #include <pjsr/DataType.jsh>
@@ -318,279 +316,275 @@ function upsertFilterKeyword( window, filterText )
    return "created";
 }
 
-function FilterFileEditorDialog( filePath, initialText )
-{
-   this.__base__ = Dialog;
-   this.__base__();
+class FilterFileEditorDialog extends Dialog {
+   constructor( filePath, initialText ) {
+      super();
 
-   this.windowTitle = "FilterZWOFit - Edit filter file";
-   this.filePath = filePath;
-   this.editedText = initialText;
+      this.windowTitle = "FilterZWOFit - Edit filter file";
+      this.filePath = filePath;
+      this.editedText = initialText;
 
-   this.pathLabel = new Label( this );
-   this.pathLabel.useRichText = true;
-   this.pathLabel.wordWrapping = true;
-   this.pathLabel.text = "File: " + filePath;
+      this.pathLabel = new Label( this );
+      this.pathLabel.useRichText = true;
+      this.pathLabel.wordWrapping = true;
+      this.pathLabel.text = "File: " + filePath;
 
-   this.editor = new TextBox( this );
-   this.editor.text = initialText;
-   this.editor.minWidth = this.font.width( "X" ) * 60;
-   this.editor.minHeight = this.font.height * 16;
+      this.editor = new TextBox( this );
+      this.editor.text = initialText;
+      this.editor.minWidth = this.font.width( "X" ) * 60;
+      this.editor.minHeight = this.font.height * 16;
 
-   this.saveButton = new PushButton( this );
-   this.saveButton.text = "Save";
-   this.saveButton.defaultButton = true;
-   this.saveButton.onClick = function()
-   {
-      this.dialog.editedText = this.dialog.editor.text;
-      this.dialog.ok();
-   };
+      this.saveButton = new PushButton( this );
+      this.saveButton.text = "Save";
+      this.saveButton.defaultButton = true;
+      this.saveButton.onClick = function()
+      {
+         this.dialog.editedText = this.dialog.editor.text;
+         this.dialog.ok();
+      };
 
-   this.cancelButton = new PushButton( this );
-   this.cancelButton.text = "Cancel";
-   this.cancelButton.onClick = function()
-   {
-      this.dialog.cancel();
-   };
+      this.cancelButton = new PushButton( this );
+      this.cancelButton.text = "Cancel";
+      this.cancelButton.onClick = function()
+      {
+         this.dialog.cancel();
+      };
 
-   this.buttonSizer = new HorizontalSizer;
-   this.buttonSizer.spacing = 8;
-   this.buttonSizer.addStretch();
-   this.buttonSizer.add( this.saveButton );
-   this.buttonSizer.add( this.cancelButton );
+      this.buttonSizer = new HorizontalSizer;
+      this.buttonSizer.spacing = 8;
+      this.buttonSizer.addStretch();
+      this.buttonSizer.add( this.saveButton );
+      this.buttonSizer.add( this.cancelButton );
 
-   this.sizer = new VerticalSizer;
-   this.sizer.margin = 10;
-   this.sizer.spacing = 8;
-   this.sizer.add( this.pathLabel );
-   this.sizer.add( this.editor, 100 );
-   this.sizer.add( this.buttonSizer );
+      this.sizer = new VerticalSizer;
+      this.sizer.margin = 10;
+      this.sizer.spacing = 8;
+      this.sizer.add( this.pathLabel );
+      this.sizer.add( this.editor, 100 );
+      this.sizer.add( this.buttonSizer );
 
-   this.adjustToContents();
+      this.adjustToContents();
+   }
 }
 
-FilterFileEditorDialog.prototype = new Dialog;
+class FilterDialog extends Dialog {
+   constructor() {
+      super();
 
-function FilterDialog()
-{
-   this.__base__ = Dialog;
-   this.__base__();
+      this.windowTitle = "FilterZWOFit - Set FILTER in FITS Header";
+      this.filterText = "";
+      this.filterFilePath = "";
+      this.filters = [];
+      this.runMode = "single";
+      this.batchDirectory = "";
+      this.lastBatchDirectory = readSettingString( SETTINGS_KEY_LAST_BATCH_DIR, File.currentWorkingDirectory );
+      this.lastFilterValue = readSettingString( SETTINGS_KEY_LAST_FILTER, "" );
 
-   this.windowTitle = "FilterZWOFit - Set FILTER in FITS Header";
-   this.filterText = "";
-   this.filterFilePath = "";
-   this.filters = [];
-   this.runMode = "single";
-   this.batchDirectory = "";
-   this.lastBatchDirectory = readSettingString( SETTINGS_KEY_LAST_BATCH_DIR, File.currentWorkingDirectory );
-   this.lastFilterValue = readSettingString( SETTINGS_KEY_LAST_FILTER, "" );
+      this.helpLabel = new Label( this );
+      this.helpLabel.useRichText = true;
+      this.helpLabel.wordWrapping = true;
+      var tooltipFromList = "Filter List: Select a filter loaded from your saved filter list.";
+      var tooltipManual = "Filter String: Enter or edit the FILTER value that will be written to FITS headers.";
+      var tooltipApply = "Apply: Write FILTER to the active image.";
+      var tooltipBatch = "Batch...: Process all supported files in a selected folder.";
+      var tooltipEdit = "Edit...: Open the filter-list editor.";
+      var tooltipCancel = "Cancel: Close this dialog without changes.";
+      this.helpLabel.text =
+         "This script writes the selected filter value to the FILTER keyword in the FITS header.";
 
-   this.helpLabel = new Label( this );
-   this.helpLabel.useRichText = true;
-   this.helpLabel.wordWrapping = true;
-   var tooltipFromList = "Filter List: Select a filter loaded from your saved filter list.";
-   var tooltipManual = "Filter String: Enter or edit the FILTER value that will be written to FITS headers.";
-   var tooltipApply = "Apply: Write FILTER to the active image.";
-   var tooltipBatch = "Batch...: Process all supported files in a selected folder.";
-   var tooltipEdit = "Edit...: Open the filter-list editor.";
-   var tooltipCancel = "Cancel: Close this dialog without changes.";
-   this.helpLabel.text =
-      "This script writes the selected filter value to the FILTER keyword in the FITS header.";
+      var labelWidth = this.font.width( "Filter String:" ) + 8;
+      var valueWidth = this.font.width( "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" );
 
-   var labelWidth = this.font.width( "Filter String:" ) + 8;
-   var valueWidth = this.font.width( "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" );
-
-   this.editFilterFileButton = new PushButton( this );
-   this.editFilterFileButton.text = "Edit...";
-   this.editFilterFileButton.toolTip = tooltipEdit;
-   this.editFilterFileButton.onClick = function()
-   {
-      var filePath = trimText( this.dialog.filterFilePath );
-      if ( filePath.length == 0 )
-         filePath = getDefaultFilterFilePath();
-
-      var text = "";
-      var storedText = readSettingString( SETTINGS_KEY_FILTER_TEXT, "" );
-      try
+      this.editFilterFileButton = new PushButton( this );
+      this.editFilterFileButton.text = "Edit...";
+      this.editFilterFileButton.toolTip = tooltipEdit;
+      this.editFilterFileButton.onClick = function()
       {
-         if ( storedText.length > 0 )
-            text = storedText;
-         else
-            text = File.exists( filePath ) ? File.readTextFile( filePath ) : defaultFilterFileTemplate();
-      }
-      catch ( ex )
-      {
-         logError( "Could not read filter file: " + ex );
-         (new MessageBox(
-            "Error while reading filter file:\n" + ex,
-            "FilterZWOFit",
-            StdIcon_Error,
-            StdButton_Ok
-         )).execute();
-         return;
-      }
+         var filePath = trimText( this.dialog.filterFilePath );
+         if ( filePath.length == 0 )
+            filePath = getDefaultFilterFilePath();
 
-      var editorDlg = new FilterFileEditorDialog( filePath, text );
-      if ( !editorDlg.execute() )
-         return;
+         var text = "";
+         var storedText = readSettingString( SETTINGS_KEY_FILTER_TEXT, "" );
+         try
+         {
+            if ( storedText.length > 0 )
+               text = storedText;
+            else
+               text = File.exists( filePath ) ? File.readTextFile( filePath ) : defaultFilterFileTemplate();
+         }
+         catch ( ex )
+         {
+            logError( "Could not read filter file: " + ex );
+            (new MessageBox(
+               "Error while reading filter file:\n" + ex,
+               "FilterZWOFit",
+               StdIcon_Error,
+               StdButton_Ok
+            )).execute();
+            return;
+         }
 
-      try
-      {
-         writeSettingString( SETTINGS_KEY_FILTER_TEXT, editorDlg.editedText );
-         logDebug( "Filter list saved in user settings." );
+         var editorDlg = new FilterFileEditorDialog( filePath, text );
+         if ( !editorDlg.execute() )
+            return;
 
          try
          {
-            File.writeTextFile( filePath, editorDlg.editedText );
-            logDebug( "Filter file saved: " + filePath );
+            writeSettingString( SETTINGS_KEY_FILTER_TEXT, editorDlg.editedText );
+            logDebug( "Filter list saved in user settings." );
+
+            try
+            {
+               File.writeTextFile( filePath, editorDlg.editedText );
+               logDebug( "Filter file saved: " + filePath );
+            }
+            catch ( writeEx )
+            {
+               logWarn( "Could not write filter file path (read-only install is fine): " + writeEx );
+            }
+
+            this.dialog.loadFilterFile( filePath );
          }
-         catch ( writeEx )
+         catch ( ex2 )
          {
-            logWarn( "Could not write filter file path (read-only install is fine): " + writeEx );
+            logError( "Could not save filter file: " + ex2 );
+            (new MessageBox(
+               "Error while saving filter file:\n" + ex2,
+               "FilterZWOFit",
+               StdIcon_Error,
+               StdButton_Ok
+            )).execute();
+         }
+      };
+
+      this.selectLabel = new Label( this );
+      this.selectLabel.text = "Filter List:";
+      this.selectLabel.minWidth = labelWidth;
+      this.selectLabel.toolTip = tooltipFromList;
+
+      this.filterCombo = new ComboBox( this );
+      this.filterCombo.editEnabled = false;
+      this.filterCombo.minWidth = valueWidth;
+      this.filterCombo.toolTip = tooltipFromList;
+      this.filterCombo.onItemSelected = function( index )
+      {
+         if ( index < 0 )
+            return;
+         this.dialog.filterEdit.text = this.itemText( index );
+      };
+
+      this.selectSizer = new HorizontalSizer;
+      this.selectSizer.spacing = 6;
+      this.selectSizer.add( this.selectLabel );
+      this.selectSizer.add( this.filterCombo, 100 );
+
+      this.filterLabel = new Label( this );
+      this.filterLabel.text = "Filter String:";
+      this.filterLabel.minWidth = labelWidth;
+      this.filterLabel.toolTip = tooltipManual;
+
+      this.filterEdit = new Edit( this );
+      this.filterEdit.minWidth = this.font.width( "XXXXXXXXXXXX" ) * 2;
+      this.filterEdit.toolTip = tooltipManual;
+      if ( this.lastFilterValue.length > 0 )
+         this.filterEdit.text = this.lastFilterValue;
+
+      this.inputSizer = new HorizontalSizer;
+      this.inputSizer.spacing = 6;
+      this.inputSizer.add( this.filterLabel );
+      this.inputSizer.add( this.filterEdit, 100 );
+
+      this.okButton = new PushButton( this );
+      this.okButton.text = "Apply";
+      this.okButton.toolTip = tooltipApply;
+      this.okButton.defaultButton = true;
+      this.okButton.onClick = function()
+      {
+         var t = trimText( this.dialog.filterEdit.text );
+         if ( t.length == 0 )
+         {
+            (new MessageBox(
+               "Please enter a non-empty FILTER value.",
+               "FilterZWOFit",
+               StdIcon_Warning,
+               StdButton_Ok
+            )).execute();
+            return;
          }
 
-         this.dialog.loadFilterFile( filePath );
-      }
-      catch ( ex2 )
+         this.dialog.filterText = t;
+         writeSettingString( SETTINGS_KEY_LAST_FILTER, t );
+         this.dialog.runMode = "single";
+         this.dialog.ok();
+      };
+
+      this.batchButton = new PushButton( this );
+      this.batchButton.text = "Batch...";
+      this.batchButton.toolTip = tooltipBatch;
+      this.batchButton.onClick = function()
       {
-         logError( "Could not save filter file: " + ex2 );
-         (new MessageBox(
-            "Error while saving filter file:\n" + ex2,
-            "FilterZWOFit",
-            StdIcon_Error,
-            StdButton_Ok
-         )).execute();
-      }
-   };
+         var t = trimText( this.dialog.filterEdit.text );
+         if ( t.length == 0 )
+         {
+            (new MessageBox(
+               "Please enter a non-empty FILTER value.",
+               "FilterZWOFit",
+               StdIcon_Warning,
+               StdButton_Ok
+            )).execute();
+            return;
+         }
 
-   this.selectLabel = new Label( this );
-   this.selectLabel.text = "Filter List:";
-   this.selectLabel.minWidth = labelWidth;
-   this.selectLabel.toolTip = tooltipFromList;
+         var gdd = new GetDirectoryDialog;
+         gdd.caption = "Choose batch folder";
+         gdd.initialPath = this.dialog.lastBatchDirectory;
+         if ( !gdd.execute() )
+         {
+            logDebug( "Batch selection canceled." );
+            return;
+         }
 
-   this.filterCombo = new ComboBox( this );
-   this.filterCombo.editEnabled = false;
-   this.filterCombo.minWidth = valueWidth;
-   this.filterCombo.toolTip = tooltipFromList;
-   this.filterCombo.onItemSelected = function( index )
-   {
-      if ( index < 0 )
-         return;
-      this.dialog.filterEdit.text = this.itemText( index );
-   };
+         this.dialog.filterText = t;
+         this.dialog.batchDirectory = gdd.directory;
+         this.dialog.lastBatchDirectory = gdd.directory;
+         writeSettingString( SETTINGS_KEY_LAST_BATCH_DIR, gdd.directory );
+         writeSettingString( SETTINGS_KEY_LAST_FILTER, t );
+         this.dialog.runMode = "batch";
+         this.dialog.ok();
+      };
 
-   this.selectSizer = new HorizontalSizer;
-   this.selectSizer.spacing = 6;
-   this.selectSizer.add( this.selectLabel );
-   this.selectSizer.add( this.filterCombo, 100 );
-
-   this.filterLabel = new Label( this );
-   this.filterLabel.text = "Filter String:";
-   this.filterLabel.minWidth = labelWidth;
-   this.filterLabel.toolTip = tooltipManual;
-
-   this.filterEdit = new Edit( this );
-   this.filterEdit.minWidth = this.font.width( "XXXXXXXXXXXX" ) * 2;
-   this.filterEdit.toolTip = tooltipManual;
-   if ( this.lastFilterValue.length > 0 )
-      this.filterEdit.text = this.lastFilterValue;
-
-   this.inputSizer = new HorizontalSizer;
-   this.inputSizer.spacing = 6;
-   this.inputSizer.add( this.filterLabel );
-   this.inputSizer.add( this.filterEdit, 100 );
-
-   this.okButton = new PushButton( this );
-   this.okButton.text = "Apply";
-   this.okButton.toolTip = tooltipApply;
-   this.okButton.defaultButton = true;
-   this.okButton.onClick = function()
-   {
-      var t = trimText( this.dialog.filterEdit.text );
-      if ( t.length == 0 )
+      this.cancelButton = new PushButton( this );
+      this.cancelButton.text = "Cancel";
+      this.cancelButton.toolTip = tooltipCancel;
+      this.cancelButton.onClick = function()
       {
-         (new MessageBox(
-            "Please enter a non-empty FILTER value.",
-            "FilterZWOFit",
-            StdIcon_Warning,
-            StdButton_Ok
-         )).execute();
-         return;
-      }
+         this.dialog.cancel();
+      };
 
-      this.dialog.filterText = t;
-      writeSettingString( SETTINGS_KEY_LAST_FILTER, t );
-      this.dialog.runMode = "single";
-      this.dialog.ok();
-   };
+      this.buttonSizer = new HorizontalSizer;
+      this.buttonSizer.spacing = 8;
+      this.buttonSizer.addStretch();
+      this.buttonSizer.add( this.okButton );
+      this.buttonSizer.add( this.batchButton );
+      this.buttonSizer.add( this.cancelButton );
+      this.buttonSizer.add( this.editFilterFileButton );
 
-   this.batchButton = new PushButton( this );
-   this.batchButton.text = "Batch...";
-   this.batchButton.toolTip = tooltipBatch;
-   this.batchButton.onClick = function()
-   {
-      var t = trimText( this.dialog.filterEdit.text );
-      if ( t.length == 0 )
-      {
-         (new MessageBox(
-            "Please enter a non-empty FILTER value.",
-            "FilterZWOFit",
-            StdIcon_Warning,
-            StdButton_Ok
-         )).execute();
-         return;
-      }
+      this.sizer = new VerticalSizer;
+      this.sizer.margin = 10;
+      this.sizer.spacing = 8;
+      this.sizer.add( this.helpLabel );
+      this.sizer.add( this.selectSizer );
+      this.sizer.add( this.inputSizer );
+      this.sizer.addSpacing( 4 );
+      this.sizer.add( this.buttonSizer );
 
-      var gdd = new GetDirectoryDialog;
-      gdd.caption = "Choose batch folder";
-      gdd.initialPath = this.dialog.lastBatchDirectory;
-      if ( !gdd.execute() )
-      {
-         logDebug( "Batch selection canceled." );
-         return;
-      }
+      this.adjustToContents();
+      this.setFixedSize();
 
-      this.dialog.filterText = t;
-      this.dialog.batchDirectory = gdd.directory;
-      this.dialog.lastBatchDirectory = gdd.directory;
-      writeSettingString( SETTINGS_KEY_LAST_BATCH_DIR, gdd.directory );
-      writeSettingString( SETTINGS_KEY_LAST_FILTER, t );
-      this.dialog.runMode = "batch";
-      this.dialog.ok();
-   };
-
-   this.cancelButton = new PushButton( this );
-   this.cancelButton.text = "Cancel";
-   this.cancelButton.toolTip = tooltipCancel;
-   this.cancelButton.onClick = function()
-   {
-      this.dialog.cancel();
-   };
-
-   this.buttonSizer = new HorizontalSizer;
-   this.buttonSizer.spacing = 8;
-   this.buttonSizer.addStretch();
-   this.buttonSizer.add( this.okButton );
-   this.buttonSizer.add( this.batchButton );
-   this.buttonSizer.add( this.cancelButton );
-   this.buttonSizer.add( this.editFilterFileButton );
-
-   this.sizer = new VerticalSizer;
-   this.sizer.margin = 10;
-   this.sizer.spacing = 8;
-   this.sizer.add( this.helpLabel );
-   this.sizer.add( this.selectSizer );
-   this.sizer.add( this.inputSizer );
-   this.sizer.addSpacing( 4 );
-   this.sizer.add( this.buttonSizer );
-
-   this.adjustToContents();
-   this.setFixedSize();
-
-   this.loadFilterFile( getDefaultFilterFilePath() );
+      this.loadFilterFile( getDefaultFilterFilePath() );
+   }
 }
-
-FilterDialog.prototype = new Dialog;
 
 FilterDialog.prototype.populateFilterCombo = function( filters )
 {

@@ -1,4 +1,4 @@
-# Beispiel-Filterliste fuer PIFilter
+# Example filter list for PIFilter
 L
 R
 G
@@ -8,5 +8,5 @@ OIII
 SII
 IDAS NB1
 
-# Alternativ gehen auch kommaseparierte Zeilen:
+# Alternatively, comma-separated lines also work:
 # UV, IR, CLS
